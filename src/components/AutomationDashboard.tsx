@@ -57,7 +57,7 @@ function BatchProcessing({ onStatusChange, onLogAdd, isLoading, setIsLoading }: 
 
       if (!response.ok) throw new Error('Extract process failed');
 
-      const result = await response.json();
+      const _result = await response.json();
       setExtractStatus('success');
       setSubmitEnabled(true);
       onStatusChange('PDF files processed successfully');
@@ -84,7 +84,7 @@ function BatchProcessing({ onStatusChange, onLogAdd, isLoading, setIsLoading }: 
 
       if (!response.ok) throw new Error('Submission process failed');
 
-      const result = await response.json();
+      const _result = await response.json();
       onStatusChange('Successfully submitted to cadastre system');
       onLogAdd('Cadastre submission completed successfully');
     } catch (error) {
