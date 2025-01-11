@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Loader2, Upload, FileCheck, AlertCircle } from 'lucide-react';
 
-const API_BASE_URL = 'https://api.cdstr.xyz/api';
+const API_BASE_URL = 'https://api.cdstr.xyz/';
 
 interface StatusMessageProps {
   message: string;
