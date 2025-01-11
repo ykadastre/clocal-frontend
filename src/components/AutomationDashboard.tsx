@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Loader2, Upload, FileCheck, AlertCircle } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:8000/api';
 
 interface StatusMessageProps {
   message: string;
@@ -41,6 +41,7 @@ function BatchProcessing({ onStatusChange, onLogAdd, isLoading, setIsLoading }: 
     onLogAdd(`Selected ${files.length} PDF files`);
   };
 
+  // In your handleExtract function in AutomationDashboard.tsx
   const handleExtract = async () => {
     try {
       setIsLoading(true);
@@ -48,21 +49,40 @@ function BatchProcessing({ onStatusChange, onLogAdd, isLoading, setIsLoading }: 
       onLogAdd('Starting PDF extraction process');
 
       const formData = new FormData();
-      selectedFiles.forEach(file => formData.append('files[]', file));
+      selectedFiles.forEach(file => formData.append('files', file));
 
       const response = await fetch(`${API_BASE_URL}/extract`, {
         method: 'POST',
         body: formData
       });
 
-      if (!response.ok) throw new Error('Extract process failed');
+      // Add logging to check response status
+      console.log('Response status:', response.status);
 
-      const _result = await response.json();
+      // Get the response text first to debug any parsing issues
+      const responseText = await response.text();
+      console.log('Response text:', responseText);
+
+      // Try to parse the response as JSON
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        throw new Error('Invalid response format from server');
+      }
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Extract process failed');
+      }
+
       setExtractStatus('success');
       setSubmitEnabled(true);
       onStatusChange('PDF files processed successfully');
       onLogAdd('PDF extraction completed - ready for submission');
+
     } catch (error) {
+      console.error('Extract error:', error);
       setExtractStatus('error');
       setSubmitEnabled(false);
       onStatusChange(`Error processing PDFs: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -208,17 +228,48 @@ export default function AutomationDashboard() {
         body: formData
       });
 
-      if (!response.ok) throw new Error('Submission failed');
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.detail || 'Submission failed');
+      }
 
       setStatus('Submission successful');
       addLog('Request submitted successfully!');
     } catch (error) {
-      setStatus(`Error in SKC process: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      addLog(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setStatus(`Error in SKC process: ${errorMessage}`);
+      addLog(`Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
   };
+
+  {
+    activeTab === 'skc' && (
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-gray-800">
+          Подаване на заявление за схема / скица с пререгистрация
+        </h2>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <input
+              type="text"
+              placeholder="Идентификатор на имот"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              value={propertyId}
+              onChange={(e) => setPropertyId(e.target.value)}
+            />
+            <p className="text-sm text-gray-500">
+              Format: 10135.2564.494 or 10135.2564.494.1
+            </p>
+          </div>
+
+          {/* Rest of your existing code... */}
+        </div>
+      </div>
+    )
+  }
 
   const handleSkicaProcess = async () => {
     if (!propertyId) {
@@ -229,18 +280,18 @@ export default function AutomationDashboard() {
     try {
       setIsLoading(true);
       setStatus('Processing request...');
-      addLog(`Starting skica process for property ID: ${propertyId}`);
+      addLog(`Starting skici process for property ID: ${propertyId}`);
 
-      const response = await fetch(`${API_BASE_URL}/skica`, {
+      const response = await fetch(`${API_BASE_URL}/skici`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ propertyId })
       });
 
-      if (!response.ok) throw new Error('Skica process failed');
+      if (!response.ok) throw new Error('Skici process failed');
 
       setStatus('Request submitted successfully!');
-      addLog(`Skica process completed for property: ${propertyId}`);
+      addLog(`Skici process completed for property: ${propertyId}`);
     } catch (error) {
       setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       addLog(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
