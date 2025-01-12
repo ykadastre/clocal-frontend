@@ -9,6 +9,59 @@ interface StatusMessageProps {
   type?: 'info' | 'error';
 }
 
+function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Replace with your credentials
+    if (username === 'admin' && password === 'password123') {
+      onLogin();
+    } else {
+      setError('Invalid credentials');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="bg-white p-8 rounded-xl shadow-sm max-w-md w-full">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">Login</h1>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+          <div>
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+          {error && (
+            <p className="text-red-600 text-sm">{error}</p>
+          )}
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Login
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function StatusMessage({ message, type = 'info' }: StatusMessageProps) {
   const bgColor = type === 'error' ? 'bg-red-50' : 'bg-blue-50';
   const textColor = type === 'error' ? 'text-red-700' : 'text-blue-700';
@@ -189,12 +242,17 @@ function BatchProcessing({ onStatusChange, onLogAdd, isLoading, setIsLoading }: 
 }
 
 export default function AutomationDashboard() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [propertyId, setPropertyId] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('batch');
   const [logs, setLogs] = useState<string[]>([]);
+
+  if (!isLoggedIn) {
+    return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
+  }
 
   const addLog = (message: string) => {
     setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
