@@ -1,12 +1,154 @@
 'use client'
 import React, { useState } from 'react';
-import { Loader2, Upload, FileCheck, AlertCircle, Info } from 'lucide-react';
+import { Loader2, Upload, FileCheck, AlertCircle, Info, Search } from 'lucide-react';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
 interface StatusMessageProps {
   message: string;
   type?: 'info' | 'error';
+}
+
+interface InfoSectionProps {
+  propertyId: string;
+  setPropertyId: (id: string) => void;
+  ownershipInfo: string;
+  isLoading: boolean;
+  handleInfoSubmit: (e: React.FormEvent) => void;
+}
+
+function InfoSection({ propertyId, setPropertyId, ownershipInfo, isLoading, handleInfoSubmit }: InfoSectionProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredInfo = ownershipInfo
+    ? ownershipInfo
+        .split('\n')
+        .filter(line => 
+          line.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+    : [];
+
+  const styleOwnershipText = (text: string) => {
+    // Split at "Нотариален акт"
+    const parts = text.split(/(Нотариален акт.*$)/);
+    const beforeNotarialAct = parts[0];
+    const notarialActAndAfter = parts[1] || '';
+
+    const styleOwnershipPart = (text: string) => {
+      if (text.includes('Няма данни за идеалните части')) {
+        return <span className="text-red-600 font-bold">{text}</span>;
+      }
+      if (text.includes('Ид. част') && (text.includes('кв. м') || text.includes('%'))) {
+        return <span className="text-green-600 font-bold">{text}</span>;
+      }
+      if (text.includes('Право на собственост')) {
+        return <span className="text-green-600">{text}</span>;
+      }
+      return text;
+    };
+
+    return (
+      <>
+        {styleOwnershipPart(beforeNotarialAct)}
+        <span className="text-gray-800">{notarialActAndAfter}</span>
+      </>
+    );
+  };
+
+  const parseNameAndId = (line: string) => {
+    // Match either:
+    // 1. Name followed by 9-10 digit ID
+    // 2. Name followed by date in format DD.MM.YYYY
+    const match = line.match(/^(.+?)(?:(\d{9,10})|(\d{2}\.\d{2}\.\d{4}))(.*)$/);
+    
+    if (match) {
+      const [_, name, id, date, rest] = match;
+      return {
+        name: name.trim(),
+        identifier: id || date,
+        rest: rest
+      };
+    }
+    
+    // If no match found, return the whole line as rest
+    return {
+      name: '',
+      identifier: '',
+      rest: line
+    };
+  };
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={handleInfoSubmit} className="space-y-6">
+        <h2 className="text-xl font-semibold text-gray-800">
+          Информация за имот
+        </h2>
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <input
+              type="text"
+              placeholder="Идентификатор на имот"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              value={propertyId}
+              onChange={(e) => setPropertyId(e.target.value)}
+            />
+            <p className="text-sm text-gray-500">
+              Format: 10135.2564.494 or 10135.2564.494.1
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading || !propertyId}
+            className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 flex items-center justify-center gap-2"
+          >
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Info className="w-4 h-4" />
+            )}
+            Получи информация
+          </button>
+        </div>
+      </form>
+
+      {ownershipInfo && (
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <h3 className="font-semibold mb-4 text-lg text-center">Детайли за собственост:</h3>
+          
+          <div className="mb-4 relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Търсене в резултатите..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-4">
+            {filteredInfo.map((line, index) => {
+              if (!line.trim()) return null;
+
+              const { name, identifier, rest } = parseNameAndId(line);
+
+              return (
+                <div key={index} className="text-sm leading-relaxed border-b border-gray-100 pb-2">
+                  {name && <span className="font-bold mr-2">{name}</span>}
+                  {identifier && <span className="text-gray-600 mr-2">{identifier}</span>}
+                  {styleOwnershipText(rest)}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -509,69 +651,13 @@ export default function AutomationDashboard() {
           )}
 
           {activeTab === 'info' && (
-            <div className="space-y-6">
-              <form onSubmit={handleInfoSubmit} className="space-y-6">
-                <h2 className="text-xl font-semibold text-gray-800">
-                  Информация за имот
-                </h2>
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <input
-                      type="text"
-                      placeholder="Идентификатор на имот"
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                      value={propertyId}
-                      onChange={(e) => setPropertyId(e.target.value)}
-                    />
-                    <p className="text-sm text-gray-500">
-                      Format: 10135.2564.494 or 10135.2564.494.1
-                    </p>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading || !propertyId}
-                    className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 flex items-center justify-center gap-2"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Info className="w-4 h-4" />
-                    )}
-                    Получи информация
-                  </button>
-                </div>
-              </form>
-
-              {ownershipInfo && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <h3 className="font-semibold mb-2 text-lg text-center">Детайли за собственост:</h3>
-                  <div className="space-y-4">
-                    {ownershipInfo.split('\n').map((line, index) => {
-                      // Skip empty lines
-                      if (!line.trim()) return null;
-
-                      // Match any text before a 9 or 10 digit number
-                      const match = line.match(/^(.+?)(\d{9,10})(.*)/);
-
-                      if (!match) return (
-                        <p key={index} className="text-sm">{line}</p>
-                      );
-
-                      const [_, name, id, rest] = match;
-
-                      return (
-                        <div key={index} className="text-sm leading-relaxed border-b border-gray-100 pb-2">
-                          <span className="font-bold mr-2">{name.trim()}</span>
-                          <span className="text-gray-600 mr-2">{id}</span>
-                          <span className="text-gray-800">{rest}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
+            <InfoSection
+              propertyId={propertyId}
+              setPropertyId={setPropertyId}
+              ownershipInfo={ownershipInfo}
+              isLoading={isLoading}
+              handleInfoSubmit={handleInfoSubmit}
+            />
           )}
         </div>
 
