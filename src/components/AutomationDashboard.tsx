@@ -17,7 +17,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Replace with your credentials
-    if (username === 'admin' && password === 'password123') {
+    if (username === '1' && password === '3') {
       onLogin();
     } else {
       setError('Invalid credentials');
