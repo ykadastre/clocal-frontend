@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Loader2, Upload, FileCheck, AlertCircle, Info } from 'lucide-react';
 
-const API_BASE_URL = 'https://api.cdstr.xyz/api';
+const API_BASE_URL = 'http://localhost:8000/api';
 
 interface StatusMessageProps {
   message: string;
@@ -254,7 +254,7 @@ export default function AutomationDashboard() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('batch');
+  const [activeTab, setActiveTab] = useState('single');
   const [logs, setLogs] = useState<string[]>([]);
   const [ownershipInfo, setOwnershipInfo] = useState('');
 
@@ -407,17 +407,22 @@ export default function AutomationDashboard() {
           {['batch', 'single', 'skc', 'info'].map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => tab !== 'batch' && setActiveTab(tab)}
               className={`px-6 py-2 text-lg font-semibold rounded-t-lg transition-colors ${
-                activeTab === tab
-                  ? 'bg-white text-blue-600 border-t-2 border-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                tab === 'batch' 
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                  : activeTab === tab
+                    ? 'bg-white text-blue-600 border-t-2 border-blue-600'
+                    : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'batch' ? 'Пререгистрация' :
+              {tab === 'batch' ? 'Пререгистрация (временно недостъпно)' :
                tab === 'single' ? 'Схема / Скица' :
                tab === 'skc' ? 'Схема / Скица с Пререгистрация' :
                'Информация за имот'}
+              {tab === 'batch' && (
+                <span className="ml-2 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">Coming Soon</span>
+              )}
             </button>
           ))}
         </div>
