@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { Loader2, Upload, FileCheck, AlertCircle, Info, Search } from 'lucide-react';
 
-const API_BASE_URL = 'https://api.cdstr.xyz/api';
+
+const API_BASE_URL = 'http://localhost:8000/api';
 
 interface StatusMessageProps {
   message: string;
@@ -13,11 +14,19 @@ interface InfoSectionProps {
   propertyId: string;
   setPropertyId: (id: string) => void;
   ownershipInfo: string;
+  propertyDetails: any;
   isLoading: boolean;
   handleInfoSubmit: (e: React.FormEvent) => void;
 }
 
-function InfoSection({ propertyId, setPropertyId, ownershipInfo, isLoading, handleInfoSubmit }: InfoSectionProps) {
+function InfoSection({ 
+  propertyId, 
+  setPropertyId, 
+  ownershipInfo,
+  propertyDetails,
+  isLoading, 
+  handleInfoSubmit 
+}: InfoSectionProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredInfo = ownershipInfo
@@ -29,7 +38,6 @@ function InfoSection({ propertyId, setPropertyId, ownershipInfo, isLoading, hand
     : [];
 
   const styleOwnershipText = (text: string) => {
-    // Split at "Нотариален акт"
     const parts = text.split(/(Нотариален акт.*$)/);
     const beforeNotarialAct = parts[0];
     const notarialActAndAfter = parts[1] || '';
@@ -56,9 +64,6 @@ function InfoSection({ propertyId, setPropertyId, ownershipInfo, isLoading, hand
   };
 
   const parseNameAndId = (line: string) => {
-    // Match either:
-    // 1. Name followed by 9-10 digit ID
-    // 2. Name followed by date in format DD.MM.YYYY
     const match = line.match(/^(.+?)(?:(\d{9,10})|(\d{2}\.\d{2}\.\d{4}))(.*)$/);
     
     if (match) {
@@ -70,7 +75,6 @@ function InfoSection({ propertyId, setPropertyId, ownershipInfo, isLoading, hand
       };
     }
     
-    // If no match found, return the whole line as rest
     return {
       name: '',
       identifier: '',
@@ -113,38 +117,67 @@ function InfoSection({ propertyId, setPropertyId, ownershipInfo, isLoading, hand
         </div>
       </form>
 
-      {ownershipInfo && (
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <h3 className="font-semibold mb-4 text-lg text-center">Детайли за собственост:</h3>
-          
-          <div className="mb-4 relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Търсене в резултатите..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-4">
-            {filteredInfo.map((line, index) => {
-              if (!line.trim()) return null;
-
-              const { name, identifier, rest } = parseNameAndId(line);
-
-              return (
-                <div key={index} className="text-sm leading-relaxed border-b border-gray-100 pb-2">
-                  {name && <span className="font-bold mr-2">{name}</span>}
-                  {identifier && <span className="text-gray-600 mr-2">{identifier}</span>}
-                  {styleOwnershipText(rest)}
+      {(propertyDetails || ownershipInfo) && (
+        <div className="space-y-6">
+          {/* Property Details Section */}
+          {propertyDetails && Object.keys(propertyDetails).length > 0 && (
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-800 text-center">Детайли за имота</h2>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  {Object.entries(propertyDetails).map(([title, content]) => (
+                    <div key={title} className="border-b border-gray-100 pb-4">
+                      <h3 className="font-semibold text-gray-800 mb-2">{title}</h3>
+                      <p className="text-gray-600">{String(content)}</p>
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            </div>
+          )}
+
+          {/* Ownership Information Section */}
+          {ownershipInfo && (
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-800 text-center">
+                  Данни за собственост {propertyId ? `(${propertyId})` : ''}
+                </h2>
+              </div>
+              <div className="p-6">
+                <div className="mb-4 relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Търсене в резултатите..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  {filteredInfo.map((line, index) => {
+                    if (!line.trim()) return null;
+
+                    const { name, identifier, rest } = parseNameAndId(line);
+
+                    return (
+                      <div key={index} className="text-sm leading-relaxed border-b border-gray-100 pb-2">
+                        {name && <span className="font-bold mr-2">{name}</span>}
+                        {identifier && <span className="text-gray-600 mr-2">{identifier}</span>}
+                        {styleOwnershipText(rest)}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -399,6 +432,7 @@ export default function AutomationDashboard() {
   const [activeTab, setActiveTab] = useState('single');
   const [logs, setLogs] = useState<string[]>([]);
   const [ownershipInfo, setOwnershipInfo] = useState('');
+  const [propertyDetails, setPropertyDetails] = useState<any>(null);
 
   if (!isLoggedIn) {
     return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
@@ -430,7 +464,8 @@ export default function AutomationDashboard() {
       }
 
       const data = await response.json();
-      setOwnershipInfo(data.ownership_details || 'No ownership information available');
+      setOwnershipInfo(data.ownership_details || 'Няма данни за собственост');
+      setPropertyDetails(data.property_details || null);
       setStatus('Property information retrieved successfully!');
       addLog(`Info process completed for property: ${propertyId}`);
     } catch (error) {
@@ -655,6 +690,7 @@ export default function AutomationDashboard() {
               propertyId={propertyId}
               setPropertyId={setPropertyId}
               ownershipInfo={ownershipInfo}
+              propertyDetails={propertyDetails}
               isLoading={isLoading}
               handleInfoSubmit={handleInfoSubmit}
             />
