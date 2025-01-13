@@ -1,14 +1,61 @@
 'use client'
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Loader2, Upload, FileCheck, AlertCircle, Info, Search } from 'lucide-react';
 
 
 const API_BASE_URL = 'https://api.cdstr.xyz/api';
 
-interface StatusMessageProps {
+interface PopupNotificationProps {
   message: string;
-  type?: 'info' | 'error';
+  type: 'info' | 'error' | 'success';
+  onClose: () => void;
 }
+
+function PopupNotification({ message, type, onClose }: PopupNotificationProps) {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+      setTimeout(onClose, 1000);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const styles = {
+    error: {
+      bg: 'bg-red-50',
+      text: 'text-red-700',
+      border: 'border-red-200'
+    },
+    success: {
+      bg: 'bg-green-50',
+      text: 'text-green-700',
+      border: 'border-green-200'
+    },
+    info: {
+      bg: 'bg-blue-50',
+      text: 'text-blue-700',
+      border: 'border-blue-200'
+    }
+  };
+
+  const { bg, text, border } = styles[type];
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div
+        className={`${bg} p-6 rounded-lg flex items-center space-x-4
+          transition-all duration-1000 ease-in-out transform shadow-xl
+          ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+      >
+        <p className={`${text} text-lg font-medium`}>{message}</p>
+      </div>
+    </div>
+  );
+}
+
 
 interface InfoSectionProps {
   propertyId: string;
@@ -17,6 +64,176 @@ interface InfoSectionProps {
   propertyDetails: any;
   isLoading: boolean;
   handleInfoSubmit: (e: React.FormEvent) => void;
+}
+
+interface BatchProcessingProps {
+  onStatusChange: (status: string) => void;
+  onLogAdd: (message: string) => void;
+  isLoading: boolean;
+  setIsLoading: (loading: boolean) => void;
+}
+
+function BatchProcessing({ onStatusChange, onLogAdd, isLoading, setIsLoading }: BatchProcessingProps) {
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [extractStatus, setExtractStatus] = useState<'success' | 'error' | null>(null);
+  const [submitEnabled, setSubmitEnabled] = useState(false);
+  const [propertyIds, setPropertyIds] = useState('');
+  const [selectedPreregFile, setSelectedPreregFile] = useState<File | null>(null);
+
+  // Prereg submission handler
+  const handlePreregSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!propertyIds.trim() || !selectedPreregFile || isLoading) return;
+
+    try {
+      setIsLoading(true);
+      onStatusChange('Processing prereg submission...');
+      onLogAdd(`Starting prereg process for properties: ${propertyIds}`);
+
+      const formData = new FormData();
+      formData.append('file', selectedPreregFile);
+      formData.append('propertyIds', propertyIds);
+
+      const response = await fetch(`${API_BASE_URL}/prereg`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Prereg submission failed');
+      }
+
+      const result = await response.json();
+      onStatusChange('Заявлението е подадено успешно!');
+      onLogAdd(`Prereg completed for properties: ${propertyIds}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Възникна грешка при подаване на заявлението!';
+      onStatusChange(`Грешка в процеса на подаване на заявлението: ${errorMessage}`);
+      onLogAdd(`PREREG error: ${errorMessage}`);
+    } finally {
+      setIsLoading(false);
+      // Clear the form inputs after submission
+      setPropertyIds('');
+      setSelectedPreregFile(null);
+      // Reset the file input element
+      const fileInput = document.getElementById('prereg-file-input') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+    }
+  };
+
+  // File selection handler for prereg
+  const handlePreregFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedPreregFile(file);
+      onLogAdd(`Selected prereg file: ${file.name}`);
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="bg-white rounded-lg border border-blue-200 p-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4 text-center">Пререгистрация</h2>
+        <form onSubmit={handlePreregSubmit} className="space-y-4">
+          <div>
+            <textarea
+              placeholder="Въведете идентификатори на имоти"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px] text-center"
+              value={propertyIds}
+              onChange={(e) => setPropertyIds(e.target.value)}
+            />
+            <p className="text-sm text-gray-500 mt-1 text-center">
+              Въведете идентификатори разделени със запетая (,)<br />
+              Пример: 10135.2564.494, 10135.2564.495
+            </p>
+          </div>
+
+          <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+            <input
+              id="prereg-file-input"
+              type="file"
+              accept=".pdf"
+              className="hidden"
+              onChange={handlePreregFileSelect}
+            />
+            <div className="flex flex-col items-center gap-2">
+              <Upload className="w-6 h-6 text-gray-400" />
+              <button
+                type="button"
+                onClick={() => document.getElementById('prereg-file-input')?.click()}
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Документ за собственост
+              </button>
+              {selectedPreregFile && (
+                <p className="text-sm text-gray-600">
+                  Selected: {selectedPreregFile.name}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading || !selectedPreregFile || !propertyIds.trim()}
+            className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300"
+          >
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Processing...
+              </div>
+            ) : (
+              'Подай заявление'
+            )}
+          </button>
+        </form>
+      </div>
+
+      <div className="opacity-50 pointer-events-none">
+        <div className="bg-gray-100 rounded-lg border border-gray-200 p-6">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4 text-center">
+            Автоматично сканиране на PDF и подаване на заявления (Тестване)
+          </h2>
+          <form className="space-y-4">
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
+              <div className="flex flex-col items-center gap-2">
+                <Upload className="w-8 h-8 text-gray-400" />
+                <p className="text-gray-600">Качване на PDF файл/файлове за обработка</p>
+                {selectedFiles.length > 0 && (
+                  <p className="text-sm text-gray-600">
+                    {selectedFiles.length} files selected
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                disabled={true}
+                className="flex items-center justify-center gap-2 bg-gray-300 text-white px-4 py-3 rounded-lg"
+              >
+                <FileCheck className="w-4 h-4" />
+                Сканиране на PDF
+              </button>
+
+              <button
+                type="submit"
+                disabled={true}
+                className="flex items-center justify-center gap-2 bg-gray-300 text-white px-4 py-3 rounded-lg"
+              >
+                <Upload className="w-4 h-4" />
+                Подай заявления
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function InfoSection({ 
@@ -85,7 +302,7 @@ function InfoSection({
   return (
     <div className="space-y-6">
       <form onSubmit={handleInfoSubmit} className="space-y-6">
-        <h2 className="text-xl font-semibold text-gray-800">
+        <h2 className="text-xl font-semibold text-gray-800 text-center">
           Информация за имот
         </h2>
         <div className="space-y-4">
@@ -93,12 +310,12 @@ function InfoSection({
             <input
               type="text"
               placeholder="Идентификатор на имот"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center"
               value={propertyId}
               onChange={(e) => setPropertyId(e.target.value)}
             />
-            <p className="text-sm text-gray-500">
-              Format: 10135.2564.494 or 10135.2564.494.1
+            <p className="text-sm text-gray-500 text-center">
+              Въведете идентификатор на имот във формат 10135.2564.494 (пример) 
             </p>
           </div>
 
@@ -237,192 +454,6 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-function StatusMessage({ message, type = 'info' }: StatusMessageProps) {
-  const bgColor = type === 'error' ? 'bg-red-50' : 'bg-blue-50';
-  const textColor = type === 'error' ? 'text-red-700' : 'text-blue-700';
-  const borderColor = type === 'error' ? 'border-red-200' : 'border-blue-200';
-
-  return (
-    <div className={`mt-6 p-4 rounded-lg ${bgColor} border ${borderColor}`}>
-      <p className={textColor}>{message}</p>
-    </div>
-  );
-}
-
-interface BatchProcessingProps {
-  onStatusChange: (status: string) => void;
-  onLogAdd: (message: string) => void;
-  isLoading: boolean;
-  setIsLoading: (loading: boolean) => void;
-}
-
-function BatchProcessing({ onStatusChange, onLogAdd, isLoading, setIsLoading }: BatchProcessingProps) {
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [extractStatus, setExtractStatus] = useState<'success' | 'error' | null>(null);
-  const [submitEnabled, setSubmitEnabled] = useState(false);
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    setSelectedFiles(files);
-    setExtractStatus(null);
-    setSubmitEnabled(false);
-    onLogAdd(`Selected ${files.length} PDF files`);
-  };
-
-  const handleExtract = async () => {
-    try {
-      setIsLoading(true);
-      onStatusChange('Processing PDF files...');
-      onLogAdd('Starting PDF extraction process');
-
-      const formData = new FormData();
-      selectedFiles.forEach(file => formData.append('files', file));
-
-      const response = await fetch(`${API_BASE_URL}/extract`, {
-        method: 'POST',
-        body: formData
-      });
-
-      console.log('Response status:', response.status);
-
-      const responseText = await response.text();
-      console.log('Response text:', responseText);
-
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Error parsing response:', parseError);
-        throw new Error('Invalid response format from server');
-      }
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Extract process failed');
-      }
-
-      setExtractStatus('success');
-      setSubmitEnabled(true);
-      onStatusChange('PDF files processed successfully');
-      onLogAdd('PDF extraction completed - ready for submission');
-
-    } catch (error) {
-      console.error('Extract error:', error);
-      setExtractStatus('error');
-      setSubmitEnabled(false);
-      onStatusChange(`Error processing PDFs: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      onLogAdd(`Error during extraction: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmitToShema = async () => {
-    try {
-      setIsLoading(true);
-      onStatusChange('Submitting to cadastre system...');
-      onLogAdd('Starting submission to cadastre');
-
-      const response = await fetch(`${API_BASE_URL}/shema`, {
-        method: 'POST'
-      });
-
-      if (!response.ok) throw new Error('Submission process failed');
-
-      const _result = await response.json();
-      onStatusChange('Successfully submitted to cadastre system');
-      onLogAdd('Cadastre submission completed successfully');
-    } catch (error) {
-      onStatusChange(`Error submitting to cadastre: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      onLogAdd(`Error during submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitEnabled && !isLoading) {
-      handleSubmitToShema();
-    } else if (selectedFiles.length > 0 && !isLoading) {
-      handleExtract();
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* File Upload Section */}
-        <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
-          <input
-            id="file-input"
-            type="file"
-            multiple
-            accept=".pdf"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-          <div className="flex flex-col items-center gap-2">
-            <Upload className="w-8 h-8 text-gray-400" />
-            <button
-              type="button"
-              onClick={() => document.getElementById('file-input')?.click()}
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              Select PDF Files
-            </button>
-            {selectedFiles.length > 0 && (
-              <p className="text-sm text-gray-600">
-                {selectedFiles.length} files selected
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Processing Controls */}
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            type="button"
-            onClick={handleExtract}
-            disabled={selectedFiles.length === 0 || isLoading}
-            className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck className="w-4 h-4" />}
-            Process PDFs
-          </button>
-
-          <button
-            type="submit"
-            disabled={!submitEnabled || isLoading}
-            className="flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            Submit to Cadastre
-          </button>
-        </div>
-
-        {/* Status Messages */}
-        {extractStatus === 'success' && (
-          <div className="flex items-center gap-2 p-4 rounded-lg bg-green-50 border border-green-200">
-            <FileCheck className="w-4 h-4 text-green-600" />
-            <p className="text-green-700">
-              PDF files processed successfully. Ready for submission.
-            </p>
-          </div>
-        )}
-
-        {extractStatus === 'error' && (
-          <div className="flex items-center gap-2 p-4 rounded-lg bg-red-50 border border-red-200">
-            <AlertCircle className="w-4 h-4 text-red-600" />
-            <p className="text-red-700">
-              Error processing PDF files. Please try again.
-            </p>
-          </div>
-        )}
-      </form>
-    </div>
-  );
-}
-
 export default function AutomationDashboard() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [propertyId, setPropertyId] = useState('');
@@ -433,10 +464,6 @@ export default function AutomationDashboard() {
   const [logs, setLogs] = useState<string[]>([]);
   const [ownershipInfo, setOwnershipInfo] = useState('');
   const [propertyDetails, setPropertyDetails] = useState<any>(null);
-
-  if (!isLoggedIn) {
-    return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
-  }
 
   const addLog = (message: string) => {
     setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
@@ -512,8 +539,14 @@ export default function AutomationDashboard() {
         throw new Error(responseData.detail || 'Submission failed');
       }
 
-      setStatus('Submission successful');
+      setStatus('Заявлението е подадено успешно!');
       addLog('Request submitted successfully!');
+      // Clear the form after successful submission
+      setSelectedFile(null);
+      const fileInput = document.getElementById('skc-file-input') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setStatus(`Error in SKC process: ${errorMessage}`);
@@ -542,7 +575,7 @@ export default function AutomationDashboard() {
 
       if (!response.ok) throw new Error('Skici process failed');
 
-      setStatus('Request submitted successfully!');
+      setStatus('Заявлението е подадено успешно!');
       addLog(`Skici process completed for property: ${propertyId}`);
     } catch (error) {
       setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -573,6 +606,11 @@ export default function AutomationDashboard() {
     }
   };
 
+  // Move the login check here, after all hooks and function declarations
+  if (!isLoggedIn) {
+    return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-4xl mx-auto px-4">
@@ -584,22 +622,17 @@ export default function AutomationDashboard() {
           {['batch', 'single', 'skc', 'info'].map((tab) => (
             <button
               key={tab}
-              onClick={() => tab !== 'batch' && setActiveTab(tab)}
+              onClick={() => setActiveTab(tab)}
               className={`px-6 py-2 text-lg font-semibold rounded-t-lg transition-colors ${
-                tab === 'batch' 
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                  : activeTab === tab
-                    ? 'bg-white text-blue-600 border-t-2 border-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                activeTab === tab
+                  ? 'bg-white text-blue-600 border-t-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'batch' ? 'Пререгистрация (временно недостъпно)' :
+              {tab === 'batch' ? 'Пререгистрация' :
                tab === 'single' ? 'Схема / Скица' :
                tab === 'skc' ? 'Схема / Скица с Пререгистрация' :
                'Информация за имот'}
-              {tab === 'batch' && (
-                <span className="ml-2 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">Coming Soon</span>
-              )}
             </button>
           ))}
         </div>
@@ -616,11 +649,11 @@ export default function AutomationDashboard() {
 
           {activeTab === 'single' && (
             <form onSubmit={handleSingleSubmit} className="space-y-6">
-              <h2 className="text-xl font-semibold text-gray-800">Подаване на схема или скица</h2>
+              <h2 className="text-xl font-semibold text-gray-800 text-center">Подаване на схема или скица</h2>
               <input
                 type="text"
-                placeholder="Въведи идентификатор"
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="Идентификатор на имот"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center"
                 value={propertyId}
                 onChange={(e) => setPropertyId(e.target.value)}
               />
@@ -636,14 +669,14 @@ export default function AutomationDashboard() {
 
           {activeTab === 'skc' && (
             <form onSubmit={handleSkcSubmit} className="space-y-6">
-              <h2 className="text-xl font-semibold text-gray-800">
+              <h2 className="text-xl font-semibold text-gray-800 text-center">
                 Подаване на заявление за схема / скица с пререгистрация
               </h2>
               <div className="space-y-4">
                 <input
                   type="text"
                   placeholder="Идентификатор на имот"
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center"
                   value={propertyId}
                   onChange={(e) => setPropertyId(e.target.value)}
                 />
@@ -664,7 +697,7 @@ export default function AutomationDashboard() {
                       onClick={() => document.getElementById('skc-file-input')?.click()}
                       className="text-blue-600 hover:text-blue-700 font-medium"
                     >
-                      Upload Document
+                      Документ за собственост
                     </button>
                     {selectedFile && (
                       <p className="text-sm text-gray-600">
@@ -679,7 +712,7 @@ export default function AutomationDashboard() {
                   disabled={isLoading || !selectedFile}
                   className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300"
                 >
-                  Подаване на заявление
+                  Подай заявление
                 </button>
               </div>
             </form>
@@ -697,15 +730,8 @@ export default function AutomationDashboard() {
           )}
         </div>
 
-        {status && (
-          <StatusMessage
-            message={status}
-            type={status.toLowerCase().includes('error') ? 'error' : 'info'}
-          />
-        )}
-
         <div className="bg-white rounded-xl shadow-sm p-6 mt-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Processing Log</h2>
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Лог</h2>
           <div className="bg-gray-900 text-gray-100 rounded-lg p-4 font-mono text-sm h-48 overflow-y-auto">
             {logs.map((log, index) => (
               <div key={index} className="mb-1">{log}</div>
@@ -713,12 +739,26 @@ export default function AutomationDashboard() {
           </div>
         </div>
 
-        {isLoading && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-white p-6 rounded-lg flex items-center space-x-4">
-              <Loader2 className="animate-spin" />
-              <p>Processing...</p>
-            </div>
+        {(isLoading || status.includes('Error:') || status === 'Заявлението е подадено успешно!') && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            {isLoading ? (
+              <div className="bg-white p-6 rounded-lg flex items-center space-x-4">
+                <Loader2 className="animate-spin" />
+                <p>Обработка ...</p>
+              </div>
+            ) : status.includes('Error:') ? (
+              <PopupNotification
+                message={status}
+                type="error"
+                onClose={() => setStatus('')}
+              />
+            ) : (
+              <PopupNotification
+                message={status}
+                type="success"
+                onClose={() => setStatus('')}
+              />
+            )}
           </div>
         )}
       </div>
